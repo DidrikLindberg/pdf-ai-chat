@@ -1,0 +1,89 @@
+from dotenv import load_dotenv
+import streamlit as st
+from PyPDF2 import PdfReader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
+from transformers import GPT2TokenizerFast
+import pandas as pd
+import matplotlib.pyplot as plt
+import io
+# import textract 
+
+def main():
+    load_dotenv()
+    st.set_page_config(page_title="Ask your PDF")
+    st.header("Ask your PDF 💬")
+    
+    # upload file
+    pdf = st.file_uploader("Upload your PDF", type="pdf")
+    
+# extract the text
+    if pdf is not None:
+        with open('pdf_text.txt', 'wb') as f:
+            f.write(pdf.read())
+        
+        with open('pdf_text.txt', 'r', encoding='latin-1') as f:
+            text = f.read()
+
+        st.write("Extracted Text:")
+        st.write(text)
+
+        if text.strip() == "":
+            st.write("No text extracted from the PDF.")
+            return
+
+        if text.strip() == "":
+            st.write("No text extracted from the PDF.")
+            return
+
+
+        # Create function to count tokens
+        tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
+        
+        def count_tokens(text: str) -> int:
+            return len(tokenizer.encode(text))
+        
+        # Step 4: Split text into chunks
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=250,
+            chunk_overlap=24,
+            length_function=count_tokens
+        )
+        chunks = text_splitter.create_documents([text])
+
+        # Quick data visualization to ensure chunking was successful
+        token_counts = [count_tokens(chunk.page_content) for chunk in chunks]
+        df = pd.DataFrame({'Token Count': token_counts})
+        ax = df.hist(bins=40)
+
+        # Save the plot as an image file
+        image_stream = io.BytesIO()
+        plt.savefig(image_stream, format='png')
+        image_stream.seek(0)
+
+        # Display the plot using Streamlit
+        st.image(image_stream, use_column_width=True)
+
+        # create embeddings
+        embeddings = OpenAIEmbeddings()
+        knowledge_base = FAISS.from_texts(chunks, embeddings)
+      
+      # # show user input
+      # user_question = st.text_input("Ask a question about your PDF:")
+      # if user_question:
+      #   docs = knowledge_base.similarity_search(user_question)
+
+        
+      #   llm = OpenAI()
+      #   chain = load_qa_chain(llm, chain_type="stuff")
+      #   with get_openai_callback() as cb:
+      #     time.sleep(60)  # Add a delay of 2 seconds before making the API request
+      #     response = chain.run(input_documents=docs, question=user_question)
+      #     print(cb)
+           
+      #   st.write(response)
+    
+
+if __name__ == '__main__':
+    main()
